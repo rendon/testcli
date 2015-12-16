@@ -5,11 +5,12 @@ import (
 	"errors"
 	"log"
 	"os/exec"
+	"strings"
 )
 
 type Command struct {
 	cmd       *exec.Cmd
-	exitError *exec.ExitError
+	exitError error
 	executed  bool
 	stdout    string
 	stderr    string
@@ -23,35 +24,58 @@ func NewCommand(name string, arg ...string) *Command {
 	}
 }
 
+func (c *Command) validate() {
+	if !c.executed {
+		log.Fatal(UninitializedCommand)
+	}
+}
+
 func (c *Command) Run() {
 	var outBuf bytes.Buffer
-	c.cmd = exec.Command("ls", "-l1")
 	c.cmd.Stdout = &outBuf
 
 	var errBuf bytes.Buffer
 	c.cmd.Stderr = &errBuf
 
 	if err := c.cmd.Run(); err != nil {
-		log.Fatalf("ERR: %s", err)
-		c.exitError = err.(*exec.ExitError)
+		c.exitError = err
 	}
 	c.stdout = string(outBuf.Bytes())
 	c.stderr = string(errBuf.Bytes())
 	c.executed = true
 }
 
+func (c *Command) Error() error {
+	c.validate()
+	return c.exitError
+}
+
 func (c *Command) Stdout() string {
-	if !c.executed {
-		log.Fatal(UninitializedCommand)
-	}
+	c.validate()
 	return c.stdout
 }
 
-func (c *Command) AssertSuccess(msg string) {
-	if !c.executed {
-		log.Fatal("Command needs to be executed before asserting anything")
-	}
-	if c.exitError != nil {
-		log.Fatal(msg)
-	}
+func (c *Command) Stderr() string {
+	c.validate()
+	return c.stderr
+}
+
+func (c *Command) StdoutContains(str string) bool {
+	c.validate()
+	return strings.Contains(c.stdout, str)
+}
+
+func (c *Command) StderrContains(str string) bool {
+	c.validate()
+	return strings.Contains(c.stderr, str)
+}
+
+func (c *Command) Success() bool {
+	c.validate()
+	return c.exitError == nil
+}
+
+func (c *Command) Failure() bool {
+	c.validate()
+	return c.exitError != nil
 }
