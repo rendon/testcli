@@ -60,14 +60,20 @@ func (c *Command) Stderr() string {
 	return c.stderr
 }
 
+// StdoutContains determines if command's STDOUT contains `str`, this operation
+// is case insensitive.
 func (c *Command) StdoutContains(str string) bool {
 	c.validate()
-	return strings.Contains(c.stdout, str)
+	str = strings.ToLower(str)
+	return strings.Contains(strings.ToLower(c.stdout), str)
 }
 
+// StdoutContains determines if command's STDERR contains `str`, this operation
+// is case insensitive.
 func (c *Command) StderrContains(str string) bool {
 	c.validate()
-	return strings.Contains(c.stderr, str)
+	str = strings.ToLower(str)
+	return strings.Contains(strings.ToLower(c.stderr), str)
 }
 
 func (c *Command) Success() bool {

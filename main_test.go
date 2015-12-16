@@ -2,6 +2,7 @@ package clitesting
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +29,12 @@ func TestStdout(t *testing.T) {
 	if !c.StdoutContains(user) {
 		t.Fatalf("Expected %q to contains %q", c.Stdout(), user)
 	}
+
+	// testing case insensitiveness
+	user = strings.ToUpper(user)
+	if !c.StdoutContains(user) {
+		t.Fatalf("Expected %q to contains %q", c.Stdout(), user)
+	}
 }
 
 func TestStderr(t *testing.T) {
@@ -38,5 +45,10 @@ func TestStderr(t *testing.T) {
 	}
 	if !c.StderrContains("missing") {
 		t.Fatalf("Expected %q to contains %q", c.Stderr(), "missing")
+	}
+
+	// testing case insensitiveness
+	if !c.StderrContains("MISSING") {
+		t.Fatalf("Expected %q to contains %q", c.Stderr(), "MISSING")
 	}
 }
