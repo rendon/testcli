@@ -17,6 +17,7 @@ type Cmd struct {
 }
 
 var UninitializedCmd = errors.New("You need to run this command first")
+var pkgCmd = &Cmd{}
 
 func Command(name string, arg ...string) *Cmd {
 	return &Cmd{
@@ -45,9 +46,18 @@ func (c *Cmd) Run() {
 	c.executed = true
 }
 
+func Run(name string, arg ...string) {
+	pkgCmd = Command(name, arg...)
+	pkgCmd.Run()
+}
+
 func (c *Cmd) Error() error {
 	c.validate()
 	return c.exitError
+}
+
+func Error() error {
+	return pkgCmd.Error()
 }
 
 func (c *Cmd) Stdout() string {
@@ -55,9 +65,17 @@ func (c *Cmd) Stdout() string {
 	return c.stdout
 }
 
+func Stdout() string {
+	return pkgCmd.Stdout()
+}
+
 func (c *Cmd) Stderr() string {
 	c.validate()
 	return c.stderr
+}
+
+func Stderr() string {
+	return pkgCmd.Stderr()
 }
 
 // StdoutContains determines if command's STDOUT contains `str`, this operation
@@ -68,6 +86,10 @@ func (c *Cmd) StdoutContains(str string) bool {
 	return strings.Contains(strings.ToLower(c.stdout), str)
 }
 
+func StdoutContains(str string) bool {
+	return pkgCmd.StdoutContains(str)
+}
+
 // StdoutContains determines if command's STDERR contains `str`, this operation
 // is case insensitive.
 func (c *Cmd) StderrContains(str string) bool {
@@ -76,12 +98,24 @@ func (c *Cmd) StderrContains(str string) bool {
 	return strings.Contains(strings.ToLower(c.stderr), str)
 }
 
+func StderrContains(str string) bool {
+	return pkgCmd.StderrContains(str)
+}
+
 func (c *Cmd) Success() bool {
 	c.validate()
 	return c.exitError == nil
 }
 
+func Success() bool {
+	return pkgCmd.Success()
+}
+
 func (c *Cmd) Failure() bool {
 	c.validate()
 	return c.exitError != nil
+}
+
+func Failure() bool {
+	return pkgCmd.Failure()
 }
