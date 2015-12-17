@@ -1,4 +1,4 @@
-package clitesting
+package testcli
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type Command struct {
+type Cmd struct {
 	cmd       *exec.Cmd
 	exitError error
 	executed  bool
@@ -16,21 +16,21 @@ type Command struct {
 	stderr    string
 }
 
-var UninitializedCommand = errors.New("You need to run this command first")
+var UninitializedCmd = errors.New("You need to run this command first")
 
-func NewCommand(name string, arg ...string) *Command {
-	return &Command{
+func Command(name string, arg ...string) *Cmd {
+	return &Cmd{
 		cmd: exec.Command(name, arg...),
 	}
 }
 
-func (c *Command) validate() {
+func (c *Cmd) validate() {
 	if !c.executed {
-		log.Fatal(UninitializedCommand)
+		log.Fatal(UninitializedCmd)
 	}
 }
 
-func (c *Command) Run() {
+func (c *Cmd) Run() {
 	var outBuf bytes.Buffer
 	c.cmd.Stdout = &outBuf
 
@@ -45,24 +45,24 @@ func (c *Command) Run() {
 	c.executed = true
 }
 
-func (c *Command) Error() error {
+func (c *Cmd) Error() error {
 	c.validate()
 	return c.exitError
 }
 
-func (c *Command) Stdout() string {
+func (c *Cmd) Stdout() string {
 	c.validate()
 	return c.stdout
 }
 
-func (c *Command) Stderr() string {
+func (c *Cmd) Stderr() string {
 	c.validate()
 	return c.stderr
 }
 
 // StdoutContains determines if command's STDOUT contains `str`, this operation
 // is case insensitive.
-func (c *Command) StdoutContains(str string) bool {
+func (c *Cmd) StdoutContains(str string) bool {
 	c.validate()
 	str = strings.ToLower(str)
 	return strings.Contains(strings.ToLower(c.stdout), str)
@@ -70,18 +70,18 @@ func (c *Command) StdoutContains(str string) bool {
 
 // StdoutContains determines if command's STDERR contains `str`, this operation
 // is case insensitive.
-func (c *Command) StderrContains(str string) bool {
+func (c *Cmd) StderrContains(str string) bool {
 	c.validate()
 	str = strings.ToLower(str)
 	return strings.Contains(strings.ToLower(c.stderr), str)
 }
 
-func (c *Command) Success() bool {
+func (c *Cmd) Success() bool {
 	c.validate()
 	return c.exitError == nil
 }
 
-func (c *Command) Failure() bool {
+func (c *Cmd) Failure() bool {
 	c.validate()
 	return c.exitError != nil
 }

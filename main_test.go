@@ -1,4 +1,4 @@
-package clitesting
+package testcli
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestFailedRun(t *testing.T) {
-	c := NewCommand("myunknowncommand")
+	c := Command("myunknowncommand")
 	c.Run()
 	if !c.Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
@@ -15,7 +15,7 @@ func TestFailedRun(t *testing.T) {
 }
 
 func TestSuccessfulRun(t *testing.T) {
-	c := NewCommand("whoami")
+	c := Command("whoami")
 	c.Run()
 	if !c.Success() {
 		t.Fatal("Expected to succeed, but failed with error: %s", c.Error())
@@ -24,7 +24,7 @@ func TestSuccessfulRun(t *testing.T) {
 
 func TestStdout(t *testing.T) {
 	user := os.Getenv("USER")
-	c := NewCommand("whoami")
+	c := Command("whoami")
 	c.Run()
 	if !c.StdoutContains(user) {
 		t.Fatalf("Expected %q to contains %q", c.Stdout(), user)
@@ -38,7 +38,7 @@ func TestStdout(t *testing.T) {
 }
 
 func TestStderr(t *testing.T) {
-	c := NewCommand("cp")
+	c := Command("cp")
 	c.Run()
 	if !c.Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
