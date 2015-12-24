@@ -71,8 +71,8 @@ func TestStderr(t *testing.T) {
 	if !c.Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
 	}
-	if !c.StderrContains("missing") {
-		t.Fatalf("Expected %q to contains %q", c.Stderr(), "missing")
+	if c.Stderr() == "" {
+		t.Fatalf("Expected %q NOT to be empty", c.Stderr())
 	}
 
 	// testing case insensitiveness
@@ -93,5 +93,58 @@ func TestPackageStderr(t *testing.T) {
 	// testing case insensitiveness
 	if !StderrContains("MISSING") {
 		t.Fatalf("Expected %q to contains %q", Stderr(), "MISSING")
+	}
+}
+
+func TestStdoutMatches(t *testing.T) {
+	regex := "(/[^/]*)+"
+	c := Command("whoami")
+	c.Run()
+	if c.StdoutMatches(regex) {
+		t.Fatalf("Expected %q NOT to match %q", c.Stdout(), regex)
+	}
+
+	c = Command("pwd")
+	c.Run()
+	if !c.StdoutMatches(regex) {
+		t.Fatalf("Expected %q to match %q", c.Stdout(), regex)
+	}
+}
+
+func TestPackageStdoutMatches(t *testing.T) {
+	regex := "(/[^/]*)+"
+	Run("whoami")
+	if StdoutMatches(regex) {
+		t.Fatalf("Expected %q NOT to match %q", Stdout(), regex)
+	}
+
+	Run("pwd")
+	if !StdoutMatches(regex) {
+		t.Fatalf("Expected %q to match %q", Stdout(), regex)
+	}
+}
+
+func TestStderrMatches(t *testing.T) {
+	regex := "(/[^/]*)+"
+	c := Command("cp")
+	c.Run()
+	if c.StderrMatches(regex) {
+		t.Fatalf("Expected %q NOT to match %q", c.Stderr(), regex)
+	}
+	regex = "cp.*operand"
+	if !c.StderrMatches(regex) {
+		t.Fatalf("Expected %q to match %q", c.Stderr(), regex)
+	}
+}
+
+func TestPackageStderrMatches(t *testing.T) {
+	regex := "(/[^/]*)+"
+	Run("cp")
+	if StderrMatches(regex) {
+		t.Fatalf("Expected %q NOT to match %q", Stderr(), regex)
+	}
+	regex = ".*cp.*"
+	if !StderrMatches(regex) {
+		t.Fatalf("Expected %q to match %q", Stderr(), regex)
 	}
 }

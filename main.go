@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -118,4 +119,24 @@ func (c *Cmd) Failure() bool {
 
 func Failure() bool {
 	return pkgCmd.Failure()
+}
+
+func (c *Cmd) StdoutMatches(regex string) bool {
+	c.validate()
+	re := regexp.MustCompile(regex)
+	return re.MatchString(c.Stdout())
+}
+
+func StdoutMatches(regex string) bool {
+	return pkgCmd.StdoutMatches(regex)
+}
+
+func (c *Cmd) StderrMatches(regex string) bool {
+	c.validate()
+	re := regexp.MustCompile(regex)
+	return re.MatchString(c.Stderr())
+}
+
+func StderrMatches(regex string) bool {
+	return pkgCmd.StderrMatches(regex)
 }
