@@ -1,10 +1,25 @@
 package testcli
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
 )
+
+func TestSetStdin(t *testing.T) {
+	buf := bytes.NewBufferString("foo\n")
+	c := Command("cat")
+	c.SetStdin(buf)
+	c.Run()
+	if c.Failure() {
+		t.Fatalf("Expected to succeed, but failed")
+	}
+
+	if c.stdout != "foo\n" {
+		t.Fatal("stdout failed to include input")
+	}
+}
 
 func TestFailedRun(t *testing.T) {
 	c := Command("myunknowncommand")
