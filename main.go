@@ -13,6 +13,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -22,6 +23,7 @@ import (
 // to the execution engine.
 type Cmd struct {
 	cmd       *exec.Cmd
+	env       []string
 	exitError error
 	executed  bool
 	stdout    string
@@ -47,6 +49,12 @@ func (c *Cmd) validate() {
 	}
 }
 
+// SetEnv overwrites the environment with the provided one. Otherwise, the
+// parent environment will be supplied.
+func (c *Cmd) SetEnv(env []string) {
+	c.env = env
+}
+
 // SetStdin sets the stdin stream. It makes no attempt to determine if the
 // command accepts anything over stdin.
 func (c *Cmd) SetStdin(stdin io.Reader) {
@@ -57,6 +65,12 @@ func (c *Cmd) SetStdin(stdin io.Reader) {
 func (c *Cmd) Run() {
 	if c.stdin != nil {
 		c.cmd.Stdin = c.stdin
+	}
+
+	if c.env != nil {
+		c.cmd.Env = c.env
+	} else {
+		c.cmd.Env = os.Environ()
 	}
 
 	var outBuf bytes.Buffer
