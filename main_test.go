@@ -6,6 +6,20 @@ import (
 	"testing"
 )
 
+func TestSetEnv(t *testing.T) {
+	c := Command("/bin/sh", "-c", "echo -n $FOO")
+	c.SetEnv([]string{"FOO=bar"})
+	c.Run()
+	if c.Failure() {
+		t.Fatalf("Expected to succeed, but failed")
+	}
+
+	if c.stdout != "bar" {
+		t.Log(c.stdout)
+		t.Fatal("stdout failed to include input")
+	}
+}
+
 func TestFailedRun(t *testing.T) {
 	c := Command("myunknowncommand")
 	c.Run()

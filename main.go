@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 type Cmd struct {
 	cmd       *exec.Cmd
+	env       []string
 	exitError error
 	executed  bool
 	stdout    string
@@ -32,7 +34,20 @@ func (c *Cmd) validate() {
 	}
 }
 
+// SetEnv overwrites the environment with the provided one. Otherwise, the
+// parent environment will be supplied.
+func (c *Cmd) SetEnv(env []string) {
+	c.env = env
+}
+
+// Run runs the command.
 func (c *Cmd) Run() {
+	if c.env != nil {
+		c.cmd.Env = c.env
+	} else {
+		c.cmd.Env = os.Environ()
+	}
+
 	var outBuf bytes.Buffer
 	c.cmd.Stdout = &outBuf
 
