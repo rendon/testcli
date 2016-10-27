@@ -40,14 +40,14 @@ func TestSuccessfulRun(t *testing.T) {
 	c := Command("whoami")
 	c.Run()
 	if !c.Success() {
-		t.Fatal("Expected to succeed, but failed with error: %s", c.Error())
+		t.Fatalf("Expected to succeed, but failed with error: %s", c.Error())
 	}
 }
 
 func TestPackageSuccessfulRun(t *testing.T) {
 	Run("whoami")
 	if !Success() {
-		t.Fatal("Expected to succeed, but failed with error: %s", Error())
+		t.Fatalf("Expected to succeed, but failed with error: %s", Error())
 	}
 }
 
