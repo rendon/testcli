@@ -16,8 +16,8 @@ func TestSetEnv(t *testing.T) {
 		t.Fatalf("Expected to succeed, but failed")
 	}
 
-	if c.stdout != "bar" {
-		t.Log(c.stdout)
+	if c.stdout.content != "bar" {
+		t.Log(c.stdout.content)
 		t.Fatal("stdout failed to include input")
 	}
 }
@@ -31,7 +31,7 @@ func TestSetStdin(t *testing.T) {
 		t.Fatalf("Expected to succeed, but failed")
 	}
 
-	if c.stdout != "foo\n" {
+	if c.stdout.content != "foo\n" {
 		t.Fatal("stdout failed to include input")
 	}
 }
@@ -98,9 +98,11 @@ func TestPackageStdout(t *testing.T) {
 func TestStderr(t *testing.T) {
 	c := Command("cp")
 	c.Run()
+
 	if !c.Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
 	}
+	
 	if c.Stderr() == "" {
 		t.Fatalf("Expected %q NOT to be empty", c.Stderr())
 	}

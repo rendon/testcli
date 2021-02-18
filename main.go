@@ -19,7 +19,13 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
+
+type output struct {
+	content string
+	mu      *sync.Mutex
+}
 
 // Cmd is typically constructed through the Command() call and provides state
 // to the execution engine.
@@ -28,10 +34,9 @@ type Cmd struct {
 	env       []string
 	exitError error
 	status    string
-	stdout    string
-	stderr    string
+	stdout    *output
+	stderr    *output
 	stdin     io.Reader
-	mu        *sync.Mutex
 }
 
 // ErrUninitializedCmd is returned when members are accessed before a run, that
@@ -39,7 +44,8 @@ type Cmd struct {
 var ErrUninitializedCmd = errors.New("You need to run this command first")
 var pkgCmd = &Cmd{
 	status: "initialized",
-	mu:     &sync.Mutex{},
+	stdout: &output{mu: &sync.Mutex{}},
+	stderr: &output{mu: &sync.Mutex{}},
 }
 
 // Command constructs a *Cmd. It is passed the command name and arguments.
@@ -47,7 +53,8 @@ func Command(name string, arg ...string) *Cmd {
 	return &Cmd{
 		cmd:    exec.Command(name, arg...),
 		status: "initialized",
-		mu:     &sync.Mutex{},
+		stdout: &output{mu: &sync.Mutex{}},
+		stderr: &output{mu: &sync.Mutex{}},
 	}
 }
 
@@ -96,8 +103,8 @@ func (c *Cmd) Run() {
 	if err := c.cmd.Run(); err != nil {
 		c.exitError = err
 	}
-	c.stdout = string(outBuf.Bytes())
-	c.stderr = string(errBuf.Bytes())
+	c.stdout.content = string(outBuf.Bytes())
+	c.stderr.content = string(errBuf.Bytes())
 	c.status = "executed"
 }
 
@@ -130,9 +137,9 @@ func (c *Cmd) Start() {
 	go func() {
 		scanner := bufio.NewScanner(stdoutPipe)
 		for scanner.Scan() {
-			c.mu.Lock()
-			c.stdout += scanner.Text()
-			c.mu.Unlock()
+			c.stdout.mu.Lock()
+			c.stdout.content += scanner.Text()
+			c.stdout.mu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
 			log.Fatal(err)
@@ -142,9 +149,9 @@ func (c *Cmd) Start() {
 	go func() {
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
-			c.mu.Lock()
-			c.stderr += scanner.Text()
-			c.mu.Unlock()
+			c.stderr.mu.Lock()
+			c.stderr.content += scanner.Text()
+			c.stderr.mu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
 			log.Fatal(err)
@@ -184,9 +191,9 @@ func Error() error {
 // Stdout stream for the command
 func (c *Cmd) Stdout() string {
 	c.validateHasStarted()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.stdout
+	c.stdout.mu.Lock()
+	defer c.stdout.mu.Unlock()
+	return c.stdout.content
 }
 
 // Stdout stream for the command
@@ -197,7 +204,9 @@ func Stdout() string {
 // Stderr stream for the command
 func (c *Cmd) Stderr() string {
 	c.validateHasStarted()
-	return c.stderr
+	c.stderr.mu.Lock()
+	defer c.stderr.mu.Unlock()
+	return c.stderr.content
 }
 
 // Stderr stream for the command
@@ -210,9 +219,8 @@ func Stderr() string {
 func (c *Cmd) StdoutContains(str string) bool {
 	c.validateHasStarted()
 	str = strings.ToLower(str)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return strings.Contains(strings.ToLower(c.stdout), str)
+	return retryStringTest(strings.Contains, c.stdout, str)
+
 }
 
 // StdoutContains determines if command's STDOUT contains `str`, this operation
@@ -226,7 +234,8 @@ func StdoutContains(str string) bool {
 func (c *Cmd) StderrContains(str string) bool {
 	c.validateHasStarted()
 	str = strings.ToLower(str)
-	return strings.Contains(strings.ToLower(c.stderr), str)
+	return retryStringTest(strings.Contains, c.stderr, str)
+	// return strings.Contains(strings.ToLower(c.stderr.content), str)
 }
 
 // StderrContains determines if command's STDERR contains `str`, this operation
@@ -263,9 +272,9 @@ func Failure() bool {
 func (c *Cmd) StdoutMatches(regex string) bool {
 	c.validateHasStarted()
 	re := regexp.MustCompile(regex)
-
-	content := c.Stdout()
-	return re.MatchString(content)
+	return retryStringTest(func(got, want string) bool {
+		return re.MatchString(got)
+	}, c.stdout, regex)
 }
 
 // StdoutMatches compares a regex to the stdout produced by the command.
@@ -277,10 +286,30 @@ func StdoutMatches(regex string) bool {
 func (c *Cmd) StderrMatches(regex string) bool {
 	c.validateHasStarted()
 	re := regexp.MustCompile(regex)
-	return re.MatchString(c.Stderr())
+	return retryStringTest(func(got, want string) bool {
+		return re.MatchString(got)
+	}, c.stderr, regex)
 }
 
 // StderrMatches compares a regex to the stderr produced by the command.
 func StderrMatches(regex string) bool {
 	return pkgCmd.StderrMatches(regex)
+}
+
+func retryStringTest(testFunc func(string, string) bool, output *output, expected string) bool {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	timeout := time.After(1 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			output.mu.Lock()
+			found := testFunc(strings.ToLower(output.content), expected)
+			output.mu.Unlock()
+			if found == true {
+				return true
+			}
+		case <-timeout:
+			return false
+		}
+	}
 }
