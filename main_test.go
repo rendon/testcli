@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSetEnv(t *testing.T) {
@@ -176,4 +177,65 @@ func TestPackageStderrMatches(t *testing.T) {
 	if !StderrMatches(regex) {
 		t.Fatalf("Expected %q to match %q", Stderr(), regex)
 	}
+}
+
+func TestLongRunningProcess(t *testing.T) {
+	c := Command("/bin/bash", "-c", "sleep 1; echo \"Done\"")
+	c.Start()
+
+	c.Wait()
+
+	if c.Error() != nil {
+		t.Fatal("command returned non successful exit code", c.Stderr())
+	}
+	expected := "Done"
+	if !c.StdoutContains(expected) {
+		t.Fatalf("Expected %q to contain %q", c.Stdout(), expected)
+	}
+}
+
+func TestReadStdoutAfterKillingLongRunningProcess(t *testing.T) {
+	c := Command("/bin/bash", "-c", "echo \"Started\"; sleep 10")
+	c.Start()
+
+	time.Sleep(1 * time.Second)
+
+	if c.status != "running" {
+		t.Fatal("command should still be running")
+
+	}
+	c.cmd.Process.Kill()
+
+	expected := "Started"
+	if !c.StdoutContains(expected) {
+		t.Fatalf("Expected %q to match %s", c.Stdout(), expected)
+	}
+}
+
+func TestTail(t *testing.T) {
+	_, err := os.Create("log.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("log.txt")
+
+	c := Command("tail", "-f", "log.txt")
+	c.Start()
+
+	Run("/bin/bash", "-c", "echo \"hello there\n\" >> log.txt")
+	if Error() != nil {
+		t.Fatal("cmmand failed", Error())
+	}
+
+	if !c.StdoutContains("hello there") {
+		t.Fatalf("Expected %q to contain %s", c.Stdout(), "hello there")
+	}
+
+	Run("/bin/bash", "-c", "echo \"Bye\" >> log.txt")
+
+	if !c.StdoutContains("Bye") {
+		t.Fatalf("Expected %q to contain %s", c.Stdout(), "Bye")
+	}
+
+	c.cmd.Process.Kill()
 }

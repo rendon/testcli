@@ -9,6 +9,7 @@
 package testcli
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Cmd is typically constructed through the Command() call and provides state
@@ -25,26 +27,38 @@ type Cmd struct {
 	cmd       *exec.Cmd
 	env       []string
 	exitError error
-	executed  bool
+	status    string
 	stdout    string
 	stderr    string
 	stdin     io.Reader
+	mu        *sync.Mutex
 }
 
 // ErrUninitializedCmd is returned when members are accessed before a run, that
 // can only be used after a command has been run.
 var ErrUninitializedCmd = errors.New("You need to run this command first")
-var pkgCmd = &Cmd{}
+var pkgCmd = &Cmd{
+	status: "initialized",
+	mu:     &sync.Mutex{},
+}
 
 // Command constructs a *Cmd. It is passed the command name and arguments.
 func Command(name string, arg ...string) *Cmd {
 	return &Cmd{
-		cmd: exec.Command(name, arg...),
+		cmd:    exec.Command(name, arg...),
+		status: "initialized",
+		mu:     &sync.Mutex{},
 	}
 }
 
-func (c *Cmd) validate() {
-	if !c.executed {
+func (c *Cmd) validateIsDone() {
+	if c.status != "executed" {
+		log.Fatal(ErrUninitializedCmd)
+	}
+}
+
+func (c *Cmd) validateHasStarted() {
+	if c.status == "initialized" {
 		log.Fatal(ErrUninitializedCmd)
 	}
 }
@@ -84,7 +98,69 @@ func (c *Cmd) Run() {
 	}
 	c.stdout = string(outBuf.Bytes())
 	c.stderr = string(errBuf.Bytes())
-	c.executed = true
+	c.status = "executed"
+}
+
+// Start starts the command without waiting for it to complete
+func (c *Cmd) Start() {
+	if c.stdin != nil {
+		c.cmd.Stdin = c.stdin
+	}
+
+	if c.env != nil {
+		c.cmd.Env = c.env
+	} else {
+		c.cmd.Env = os.Environ()
+	}
+
+	stdoutPipe, err := c.cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stderrPipe, err := c.cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := c.cmd.Start(); err != nil {
+		c.exitError = err
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			c.mu.Lock()
+			c.stdout += scanner.Text()
+			c.mu.Unlock()
+		}
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			c.mu.Lock()
+			c.stderr += scanner.Text()
+			c.mu.Unlock()
+		}
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	c.status = "running"
+}
+
+func (c *Cmd) Wait() {
+	if c.status != "running" {
+		log.Fatal("Can't wait on command that isnt running")
+	}
+	if err := c.cmd.Wait(); err != nil {
+		c.exitError = err
+	}
+	c.status = "executed"
 }
 
 // Run runs a command with name and arguments. After this, package-level
@@ -96,7 +172,7 @@ func Run(name string, arg ...string) {
 
 // Error is the command's error, if any.
 func (c *Cmd) Error() error {
-	c.validate()
+	c.validateIsDone()
 	return c.exitError
 }
 
@@ -107,7 +183,9 @@ func Error() error {
 
 // Stdout stream for the command
 func (c *Cmd) Stdout() string {
-	c.validate()
+	c.validateHasStarted()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.stdout
 }
 
@@ -118,7 +196,7 @@ func Stdout() string {
 
 // Stderr stream for the command
 func (c *Cmd) Stderr() string {
-	c.validate()
+	c.validateHasStarted()
 	return c.stderr
 }
 
@@ -130,8 +208,10 @@ func Stderr() string {
 // StdoutContains determines if command's STDOUT contains `str`, this operation
 // is case insensitive.
 func (c *Cmd) StdoutContains(str string) bool {
-	c.validate()
+	c.validateHasStarted()
 	str = strings.ToLower(str)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return strings.Contains(strings.ToLower(c.stdout), str)
 }
 
@@ -144,7 +224,7 @@ func StdoutContains(str string) bool {
 // StderrContains determines if command's STDERR contains `str`, this operation
 // is case insensitive.
 func (c *Cmd) StderrContains(str string) bool {
-	c.validate()
+	c.validateHasStarted()
 	str = strings.ToLower(str)
 	return strings.Contains(strings.ToLower(c.stderr), str)
 }
@@ -158,7 +238,7 @@ func StderrContains(str string) bool {
 // Success is a boolean status which indicates if the program exited non-zero
 // or not.
 func (c *Cmd) Success() bool {
-	c.validate()
+	c.validateIsDone()
 	return c.exitError == nil
 }
 
@@ -170,7 +250,7 @@ func Success() bool {
 
 // Failure is the inverse of Success().
 func (c *Cmd) Failure() bool {
-	c.validate()
+	c.validateIsDone()
 	return c.exitError != nil
 }
 
@@ -181,9 +261,11 @@ func Failure() bool {
 
 // StdoutMatches compares a regex to the stdout produced by the command.
 func (c *Cmd) StdoutMatches(regex string) bool {
-	c.validate()
+	c.validateHasStarted()
 	re := regexp.MustCompile(regex)
-	return re.MatchString(c.Stdout())
+
+	content := c.Stdout()
+	return re.MatchString(content)
 }
 
 // StdoutMatches compares a regex to the stdout produced by the command.
@@ -193,7 +275,7 @@ func StdoutMatches(regex string) bool {
 
 // StderrMatches compares a regex to the stderr produced by the command.
 func (c *Cmd) StderrMatches(regex string) bool {
-	c.validate()
+	c.validateHasStarted()
 	re := regexp.MustCompile(regex)
 	return re.MatchString(c.Stderr())
 }
