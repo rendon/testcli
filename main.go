@@ -42,6 +42,10 @@ type Cmd struct {
 // ErrUninitializedCmd is returned when members are accessed before a run, that
 // can only be used after a command has been run.
 var ErrUninitializedCmd = errors.New("You need to run this command first")
+// ErrCmdNotFinished is returned when members are accessed before or during a run,
+// that can only be used after a command has finished executing.
+var ErrCmdNotFinished = errors.New("Command is still executing")
+
 var pkgCmd = &Cmd{
 	status: "initialized",
 	stdout: &output{mu: &sync.Mutex{}},
@@ -60,7 +64,7 @@ func Command(name string, arg ...string) *Cmd {
 
 func (c *Cmd) validateIsDone() {
 	if c.status != "executed" {
-		log.Fatal(ErrUninitializedCmd)
+		log.Fatal(ErrCmdNotFinished)
 	}
 }
 
