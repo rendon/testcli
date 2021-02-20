@@ -173,6 +173,16 @@ func (c *Cmd) Wait() {
 	c.status = "executed"
 }
 
+// Kill kills the process of the current command
+func (c *Cmd) Kill() {
+	c.validateHasStarted()
+	err := c.cmd.Process.Kill()
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.status = "executed"
+}
+
 // Run runs a command with name and arguments. After this, package-level
 // functions will return the data about the last command run.
 func Run(name string, arg ...string) {
