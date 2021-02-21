@@ -102,7 +102,7 @@ func TestStderr(t *testing.T) {
 	if !c.Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
 	}
-	
+
 	if c.Stderr() == "" {
 		t.Fatalf("Expected %q NOT to be empty", c.Stderr())
 	}

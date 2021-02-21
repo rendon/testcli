@@ -42,12 +42,22 @@ type Cmd struct {
 // ErrUninitializedCmd is returned when members are accessed before a run, that
 // can only be used after a command has been run.
 var ErrUninitializedCmd = errors.New("You need to run this command first")
+
 // ErrCmdNotFinished is returned when members are accessed before or during a run,
 // that can only be used after a command has finished executing.
 var ErrCmdNotFinished = errors.New("Command is still executing")
 
+const (
+	// INITIALIZED represents the state of Command before it's started with Run() or Start()
+	INITIALIZED = "initialized"
+	// RUNNING represents the state of Command while it's running
+	RUNNING = "running"
+	// FINISHED represents the state of Command after it has exited successfully or not
+	FINISHED = "finished"
+)
+
 var pkgCmd = &Cmd{
-	status: "initialized",
+	status: INITIALIZED,
 	stdout: &output{mu: &sync.Mutex{}},
 	stderr: &output{mu: &sync.Mutex{}},
 }
@@ -56,20 +66,20 @@ var pkgCmd = &Cmd{
 func Command(name string, arg ...string) *Cmd {
 	return &Cmd{
 		cmd:    exec.Command(name, arg...),
-		status: "initialized",
+		status: INITIALIZED,
 		stdout: &output{mu: &sync.Mutex{}},
 		stderr: &output{mu: &sync.Mutex{}},
 	}
 }
 
-func (c *Cmd) validateIsDone() {
-	if c.status != "executed" {
+func (c *Cmd) validateIsFinished() {
+	if c.status != FINISHED {
 		log.Fatal(ErrCmdNotFinished)
 	}
 }
 
 func (c *Cmd) validateHasStarted() {
-	if c.status == "initialized" {
+	if c.status == INITIALIZED {
 		log.Fatal(ErrUninitializedCmd)
 	}
 }
@@ -109,7 +119,7 @@ func (c *Cmd) Run() {
 	}
 	c.stdout.content = string(outBuf.Bytes())
 	c.stderr.content = string(errBuf.Bytes())
-	c.status = "executed"
+	c.status = FINISHED
 }
 
 // Start starts the command without waiting for it to complete
@@ -161,7 +171,7 @@ func (c *Cmd) Start() {
 			log.Fatal(err)
 		}
 	}()
-	c.status = "running"
+	c.status = RUNNING
 }
 
 // Wait waits for the command to exit
@@ -170,7 +180,7 @@ func (c *Cmd) Wait() {
 	if err := c.cmd.Wait(); err != nil {
 		c.exitError = err
 	}
-	c.status = "executed"
+	c.status = FINISHED
 }
 
 // Kill kills the process of the current command
@@ -180,7 +190,7 @@ func (c *Cmd) Kill() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	c.status = "executed"
+	c.status = FINISHED
 }
 
 // Run runs a command with name and arguments. After this, package-level
@@ -192,7 +202,7 @@ func Run(name string, arg ...string) {
 
 // Error is the command's error, if any.
 func (c *Cmd) Error() error {
-	c.validateIsDone()
+	c.validateIsFinished()
 	return c.exitError
 }
 
@@ -233,7 +243,6 @@ func (c *Cmd) StdoutContains(str string) bool {
 	c.validateHasStarted()
 	str = strings.ToLower(str)
 	return retryStringTest(strings.Contains, c.stdout, str)
-
 }
 
 // StdoutContains determines if command's STDOUT contains `str`, this operation
@@ -260,7 +269,7 @@ func StderrContains(str string) bool {
 // Success is a boolean status which indicates if the program exited non-zero
 // or not.
 func (c *Cmd) Success() bool {
-	c.validateIsDone()
+	c.validateIsFinished()
 	return c.exitError == nil
 }
 
@@ -272,7 +281,7 @@ func Success() bool {
 
 // Failure is the inverse of Success().
 func (c *Cmd) Failure() bool {
-	c.validateIsDone()
+	c.validateIsFinished()
 	return c.exitError != nil
 }
 
