@@ -79,7 +79,8 @@ func (c *Cmd) validateIsFinished() {
 }
 
 func (c *Cmd) validateHasStarted() {
-	if c.status == INITIALIZED {
+	// After calling Start() status can either be running or finished
+	if !(c.status == RUNNING || c.status == FINISHED) {
 		log.Fatal(ErrUninitializedCmd)
 	}
 }
