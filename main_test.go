@@ -9,7 +9,7 @@ import (
 )
 
 func TestSetEnv(t *testing.T) {
-	c := Command("/bin/sh", "-c", "echo -n $FOO")
+	c := Command(t, "/bin/sh", "-c", "echo -n $FOO")
 	c.SetEnv([]string{"FOO=bar"})
 	c.Run()
 	if c.Failure() {
@@ -24,7 +24,7 @@ func TestSetEnv(t *testing.T) {
 
 func TestSetStdin(t *testing.T) {
 	buf := bytes.NewBufferString("foo\n")
-	c := Command("cat")
+	c := Command(t, "cat")
 	c.SetStdin(buf)
 	c.Run()
 	if c.Failure() {
@@ -37,7 +37,7 @@ func TestSetStdin(t *testing.T) {
 }
 
 func TestFailedRun(t *testing.T) {
-	c := Command("myunknowncommand")
+	c := Command(t, "myunknowncommand")
 	c.Run()
 	if !c.Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
@@ -45,14 +45,14 @@ func TestFailedRun(t *testing.T) {
 }
 
 func TestPackageFailedRun(t *testing.T) {
-	Run("myunknowncommand")
+	Run(t, "myunknowncommand")
 	if !Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
 	}
 }
 
 func TestSuccessfulRun(t *testing.T) {
-	c := Command("whoami")
+	c := Command(t, "whoami")
 	c.Run()
 	if !c.Success() {
 		t.Fatalf("Expected to succeed, but failed with error: %s", c.Error())
@@ -60,7 +60,7 @@ func TestSuccessfulRun(t *testing.T) {
 }
 
 func TestPackageSuccessfulRun(t *testing.T) {
-	Run("whoami")
+	Run(t, "whoami")
 	if !Success() {
 		t.Fatalf("Expected to succeed, but failed with error: %s", Error())
 	}
@@ -68,7 +68,7 @@ func TestPackageSuccessfulRun(t *testing.T) {
 
 func TestStdout(t *testing.T) {
 	user := os.Getenv("USER")
-	c := Command("whoami")
+	c := Command(t, "whoami")
 	c.Run()
 	if !c.StdoutContains(user) {
 		t.Fatalf("Expected %q to contains %q", c.Stdout(), user)
@@ -83,7 +83,7 @@ func TestStdout(t *testing.T) {
 
 func TestPackageStdout(t *testing.T) {
 	user := os.Getenv("USER")
-	Run("whoami")
+	Run(t, "whoami")
 	if !StdoutContains(user) {
 		t.Fatalf("Expected %q to contains %q", Stdout(), user)
 	}
@@ -96,7 +96,7 @@ func TestPackageStdout(t *testing.T) {
 }
 
 func TestStderr(t *testing.T) {
-	c := Command("cp")
+	c := Command(t, "cp")
 	c.Run()
 
 	if !c.Failure() {
@@ -114,7 +114,7 @@ func TestStderr(t *testing.T) {
 }
 
 func TestPackageStderr(t *testing.T) {
-	Run("cp")
+	Run(t, "cp")
 	if !Failure() {
 		t.Fatalf("Expected to fail, but succeeded")
 	}
@@ -130,13 +130,13 @@ func TestPackageStderr(t *testing.T) {
 
 func TestStdoutMatches(t *testing.T) {
 	regex := "(/[^/]*)+"
-	c := Command("whoami")
+	c := Command(t, "whoami")
 	c.Run()
 	if c.StdoutMatches(regex) {
 		t.Fatalf("Expected %q NOT to match %q", c.Stdout(), regex)
 	}
 
-	c = Command("pwd")
+	c = Command(t, "pwd")
 	c.Run()
 	if !c.StdoutMatches(regex) {
 		t.Fatalf("Expected %q to match %q", c.Stdout(), regex)
@@ -145,12 +145,12 @@ func TestStdoutMatches(t *testing.T) {
 
 func TestPackageStdoutMatches(t *testing.T) {
 	regex := "(/[^/]*)+"
-	Run("whoami")
+	Run(t, "whoami")
 	if StdoutMatches(regex) {
 		t.Fatalf("Expected %q NOT to match %q", Stdout(), regex)
 	}
 
-	Run("pwd")
+	Run(t, "pwd")
 	if !StdoutMatches(regex) {
 		t.Fatalf("Expected %q to match %q", Stdout(), regex)
 	}
@@ -158,7 +158,7 @@ func TestPackageStdoutMatches(t *testing.T) {
 
 func TestStderrMatches(t *testing.T) {
 	regex := "(/[^/]*)+"
-	c := Command("cp")
+	c := Command(t, "cp")
 	c.Run()
 	if c.StderrMatches(regex) {
 		t.Fatalf("Expected %q NOT to match %q", c.Stderr(), regex)
@@ -171,7 +171,7 @@ func TestStderrMatches(t *testing.T) {
 
 func TestPackageStderrMatches(t *testing.T) {
 	regex := "(/[^/]*)+"
-	Run("cp")
+	Run(t, "cp")
 	if StderrMatches(regex) {
 		t.Fatalf("Expected %q NOT to match %q", Stderr(), regex)
 	}
@@ -182,7 +182,7 @@ func TestPackageStderrMatches(t *testing.T) {
 }
 
 func TestLongRunningProcess(t *testing.T) {
-	c := Command("/bin/bash", "-c", "sleep 1; echo \"Done\"")
+	c := Command(t, "/bin/bash", "-c", "sleep 1; echo \"Done\"")
 	c.Start()
 
 	c.Wait()
@@ -197,7 +197,7 @@ func TestLongRunningProcess(t *testing.T) {
 }
 
 func TestReadStdoutAfterKillingLongRunningProcess(t *testing.T) {
-	c := Command("/bin/bash", "-c", "echo \"Started\"; sleep 10")
+	c := Command(t, "/bin/bash", "-c", "echo \"Started\"; sleep 10")
 	c.Start()
 
 	time.Sleep(1 * time.Second)
@@ -221,10 +221,10 @@ func TestTail(t *testing.T) {
 	}
 	defer os.Remove("log.txt")
 
-	c := Command("tail", "-f", "log.txt")
+	c := Command(t, "tail", "-f", "log.txt")
 	c.Start()
 
-	Run("/bin/bash", "-c", "echo \"hello there\n\" >> log.txt")
+	Run(t, "/bin/bash", "-c", "echo \"hello there\n\" >> log.txt")
 	if Error() != nil {
 		t.Fatal("cmmand failed", Error())
 	}
@@ -233,7 +233,7 @@ func TestTail(t *testing.T) {
 		t.Fatalf("Expected %q to contain %s", c.Stdout(), "hello there")
 	}
 
-	Run("/bin/bash", "-c", "echo \"Bye\" >> log.txt")
+	Run(t, "/bin/bash", "-c", "echo \"Bye\" >> log.txt")
 
 	if !c.StdoutContains("Bye") {
 		t.Fatalf("Expected %q to contain %s", c.Stdout(), "Bye")

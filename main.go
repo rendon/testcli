@@ -13,12 +13,12 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -37,6 +37,7 @@ type Cmd struct {
 	stdout    *output
 	stderr    *output
 	stdin     io.Reader
+	t         *testing.T
 }
 
 // ErrUninitializedCmd is returned when members are accessed before a run, that
@@ -56,16 +57,13 @@ const (
 	FINISHED = "finished"
 )
 
-var pkgCmd = &Cmd{
-	status: INITIALIZED,
-	stdout: &output{mu: &sync.Mutex{}},
-	stderr: &output{mu: &sync.Mutex{}},
-}
+var pkgCmd *Cmd
 
 // Command constructs a *Cmd. It is passed the command name and arguments.
-func Command(name string, arg ...string) *Cmd {
+func Command(t *testing.T, name string, arg ...string) *Cmd {
 	return &Cmd{
 		cmd:    exec.Command(name, arg...),
+		t:      t,
 		status: INITIALIZED,
 		stdout: &output{mu: &sync.Mutex{}},
 		stderr: &output{mu: &sync.Mutex{}},
@@ -73,15 +71,17 @@ func Command(name string, arg ...string) *Cmd {
 }
 
 func (c *Cmd) validateIsFinished() {
+	c.t.Helper()
 	if c.status != FINISHED {
-		log.Fatal(ErrCmdNotFinished)
+		c.t.Fatal(ErrCmdNotFinished)
 	}
 }
 
 func (c *Cmd) validateHasStarted() {
+	c.t.Helper()
 	// After calling Start() status can either be running or finished
 	if !(c.status == RUNNING || c.status == FINISHED) {
-		log.Fatal(ErrUninitializedCmd)
+		c.t.Fatal(ErrUninitializedCmd)
 	}
 }
 
@@ -99,6 +99,7 @@ func (c *Cmd) SetStdin(stdin io.Reader) {
 
 // Run runs the command.
 func (c *Cmd) Run() {
+	c.t.Helper()
 	if c.stdin != nil {
 		c.cmd.Stdin = c.stdin
 	}
@@ -125,6 +126,7 @@ func (c *Cmd) Run() {
 
 // Start starts the command without waiting for it to complete
 func (c *Cmd) Start() {
+	c.t.Helper()
 	if c.stdin != nil {
 		c.cmd.Stdin = c.stdin
 	}
@@ -137,12 +139,12 @@ func (c *Cmd) Start() {
 
 	stdoutPipe, err := c.cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		c.t.Fatal(err)
 	}
 
 	stderrPipe, err := c.cmd.StderrPipe()
 	if err != nil {
-		log.Fatal(err)
+		c.t.Fatal(err)
 	}
 
 	if err := c.cmd.Start(); err != nil {
@@ -157,7 +159,7 @@ func (c *Cmd) Start() {
 			c.stdout.mu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
-			log.Fatal(err)
+			c.t.Fatal(err)
 		}
 	}()
 
@@ -169,14 +171,16 @@ func (c *Cmd) Start() {
 			c.stderr.mu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
-			log.Fatal(err)
+			c.t.Fatal(err)
 		}
 	}()
 	c.status = RUNNING
 }
 
-// Wait waits for the command to exit
+// Wait waits for a command started with Start() to exit.
+// Will fail if called before Start() or Run()
 func (c *Cmd) Wait() {
+	c.t.Helper()
 	c.validateHasStarted()
 	if err := c.cmd.Wait(); err != nil {
 		c.exitError = err
@@ -186,34 +190,39 @@ func (c *Cmd) Wait() {
 
 // Kill kills the process of the current command
 func (c *Cmd) Kill() {
+	c.t.Helper()
 	c.validateHasStarted()
 	err := c.cmd.Process.Kill()
 	if err != nil {
-		log.Fatal(err)
+		c.t.Fatal(err)
 	}
 	c.status = FINISHED
 }
 
 // Run runs a command with name and arguments. After this, package-level
 // functions will return the data about the last command run.
-func Run(name string, arg ...string) {
-	pkgCmd = Command(name, arg...)
+func Run(t *testing.T, name string, arg ...string) {
+	t.Helper()
+	pkgCmd = Command(t, name, arg...)
 	pkgCmd.Run()
 }
 
 // Error is the command's error, if any.
 func (c *Cmd) Error() error {
+	c.t.Helper()
 	c.validateIsFinished()
 	return c.exitError
 }
 
 // Error is the command's error, if any.
 func Error() error {
+	pkgCmd.t.Helper()
 	return pkgCmd.Error()
 }
 
 // Stdout stream for the command
 func (c *Cmd) Stdout() string {
+	c.t.Helper()
 	c.validateHasStarted()
 	c.stdout.mu.Lock()
 	defer c.stdout.mu.Unlock()
@@ -222,11 +231,13 @@ func (c *Cmd) Stdout() string {
 
 // Stdout stream for the command
 func Stdout() string {
+	pkgCmd.t.Helper()
 	return pkgCmd.Stdout()
 }
 
 // Stderr stream for the command
 func (c *Cmd) Stderr() string {
+	c.t.Helper()
 	c.validateHasStarted()
 	c.stderr.mu.Lock()
 	defer c.stderr.mu.Unlock()
@@ -235,12 +246,14 @@ func (c *Cmd) Stderr() string {
 
 // Stderr stream for the command
 func Stderr() string {
+	pkgCmd.t.Helper()
 	return pkgCmd.Stderr()
 }
 
 // StdoutContains determines if command's STDOUT contains `str`, this operation
 // is case insensitive.
 func (c *Cmd) StdoutContains(str string) bool {
+	c.t.Helper()
 	c.validateHasStarted()
 	str = strings.ToLower(str)
 	return retryStringTest(strings.Contains, c.stdout, str)
@@ -249,12 +262,14 @@ func (c *Cmd) StdoutContains(str string) bool {
 // StdoutContains determines if command's STDOUT contains `str`, this operation
 // is case insensitive.
 func StdoutContains(str string) bool {
+	pkgCmd.t.Helper()
 	return pkgCmd.StdoutContains(str)
 }
 
 // StderrContains determines if command's STDERR contains `str`, this operation
 // is case insensitive.
 func (c *Cmd) StderrContains(str string) bool {
+	c.t.Helper()
 	c.validateHasStarted()
 	str = strings.ToLower(str)
 	return retryStringTest(strings.Contains, c.stderr, str)
@@ -264,12 +279,14 @@ func (c *Cmd) StderrContains(str string) bool {
 // StderrContains determines if command's STDERR contains `str`, this operation
 // is case insensitive.
 func StderrContains(str string) bool {
+	pkgCmd.t.Helper()
 	return pkgCmd.StderrContains(str)
 }
 
 // Success is a boolean status which indicates if the program exited non-zero
 // or not.
 func (c *Cmd) Success() bool {
+	c.t.Helper()
 	c.validateIsFinished()
 	return c.exitError == nil
 }
@@ -277,22 +294,26 @@ func (c *Cmd) Success() bool {
 // Success is a boolean status which indicates if the program exited non-zero
 // or not.
 func Success() bool {
+	pkgCmd.t.Helper()
 	return pkgCmd.Success()
 }
 
 // Failure is the inverse of Success().
 func (c *Cmd) Failure() bool {
+	c.t.Helper()
 	c.validateIsFinished()
 	return c.exitError != nil
 }
 
 // Failure is the inverse of Success().
 func Failure() bool {
+	pkgCmd.t.Helper()
 	return pkgCmd.Failure()
 }
 
 // StdoutMatches compares a regex to the stdout produced by the command.
 func (c *Cmd) StdoutMatches(regex string) bool {
+	c.t.Helper()
 	c.validateHasStarted()
 	re := regexp.MustCompile(regex)
 	return retryStringTest(func(got, want string) bool {
@@ -302,11 +323,13 @@ func (c *Cmd) StdoutMatches(regex string) bool {
 
 // StdoutMatches compares a regex to the stdout produced by the command.
 func StdoutMatches(regex string) bool {
+	pkgCmd.t.Helper()
 	return pkgCmd.StdoutMatches(regex)
 }
 
 // StderrMatches compares a regex to the stderr produced by the command.
 func (c *Cmd) StderrMatches(regex string) bool {
+	c.t.Helper()
 	c.validateHasStarted()
 	re := regexp.MustCompile(regex)
 	return retryStringTest(func(got, want string) bool {
@@ -316,6 +339,7 @@ func (c *Cmd) StderrMatches(regex string) bool {
 
 // StderrMatches compares a regex to the stderr produced by the command.
 func StderrMatches(regex string) bool {
+	pkgCmd.t.Helper()
 	return pkgCmd.StderrMatches(regex)
 }
 
