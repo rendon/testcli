@@ -166,9 +166,7 @@ func (c *Cmd) Start() {
 
 // Wait waits for the command to exit
 func (c *Cmd) Wait() {
-	if c.status != "running" {
-		log.Fatal("Can't wait on command that isnt running")
-	}
+	c.validateHasStarted()
 	if err := c.cmd.Wait(); err != nil {
 		c.exitError = err
 	}
