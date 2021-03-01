@@ -164,6 +164,7 @@ func (c *Cmd) Start() {
 	c.status = "running"
 }
 
+// Wait waits for the command to exit
 func (c *Cmd) Wait() {
 	if c.status != "running" {
 		log.Fatal("Can't wait on command that isnt running")
@@ -300,6 +301,8 @@ func StderrMatches(regex string) bool {
 	return pkgCmd.StderrMatches(regex)
 }
 
+// retryStringTest takes in a testFunc and will test output for the expected string until either it
+// finds the expected string or times out (default 1 second)
 func retryStringTest(testFunc func(string, string) bool, output *output, expected string) bool {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	timeout := time.After(1 * time.Second)
