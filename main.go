@@ -50,11 +50,11 @@ var ErrCmdNotFinished = errors.New("Command is still executing")
 
 const (
 	// INITIALIZED represents the state of Command before it's started with Run() or Start()
-	INITIALIZED = "initialized"
+	initialized = "initialized"
 	// RUNNING represents the state of Command while it's running
-	RUNNING = "running"
+	running = "running"
 	// FINISHED represents the state of Command after it has exited successfully or not
-	FINISHED = "finished"
+	finished = "finished"
 )
 
 var pkgCmd *Cmd
@@ -64,7 +64,7 @@ func Command(t *testing.T, name string, arg ...string) *Cmd {
 	return &Cmd{
 		cmd:    exec.Command(name, arg...),
 		t:      t,
-		status: INITIALIZED,
+		status: initialized,
 		stdout: &output{mu: &sync.Mutex{}},
 		stderr: &output{mu: &sync.Mutex{}},
 	}
@@ -72,7 +72,7 @@ func Command(t *testing.T, name string, arg ...string) *Cmd {
 
 func (c *Cmd) validateIsFinished() {
 	c.t.Helper()
-	if c.status != FINISHED {
+	if c.status != finished {
 		c.t.Fatal(ErrCmdNotFinished)
 	}
 }
@@ -80,7 +80,7 @@ func (c *Cmd) validateIsFinished() {
 func (c *Cmd) validateHasStarted() {
 	c.t.Helper()
 	// After calling Start() status can either be running or finished
-	if !(c.status == RUNNING || c.status == FINISHED) {
+	if !(c.status == running || c.status == finished) {
 		c.t.Fatal(ErrUninitializedCmd)
 	}
 }
@@ -121,7 +121,7 @@ func (c *Cmd) Run() {
 	}
 	c.stdout.content = string(outBuf.Bytes())
 	c.stderr.content = string(errBuf.Bytes())
-	c.status = FINISHED
+	c.status = finished
 }
 
 // Start starts the command without waiting for it to complete
@@ -174,7 +174,7 @@ func (c *Cmd) Start() {
 			c.t.Fatal(err)
 		}
 	}()
-	c.status = RUNNING
+	c.status = running
 }
 
 // Wait waits for a command started with Start() to exit.
@@ -185,7 +185,7 @@ func (c *Cmd) Wait() {
 	if err := c.cmd.Wait(); err != nil {
 		c.exitError = err
 	}
-	c.status = FINISHED
+	c.status = finished
 }
 
 // Kill kills the process of the current command
@@ -196,7 +196,7 @@ func (c *Cmd) Kill() {
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	c.status = FINISHED
+	c.status = finished
 }
 
 // Run runs a command with name and arguments. After this, package-level
