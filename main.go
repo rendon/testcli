@@ -155,7 +155,7 @@ func (c *Cmd) Start() {
 		scanner := bufio.NewScanner(stdoutPipe)
 		for scanner.Scan() {
 			c.stdout.mu.Lock()
-			c.stdout.content += scanner.Text()
+			c.stdout.content += scanner.Text() + "\n"
 			c.stdout.mu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
@@ -167,7 +167,7 @@ func (c *Cmd) Start() {
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
 			c.stderr.mu.Lock()
-			c.stderr.content += scanner.Text()
+			c.stderr.content += scanner.Text() + "\n"
 			c.stderr.mu.Unlock()
 		}
 		if err := scanner.Err(); err != nil {

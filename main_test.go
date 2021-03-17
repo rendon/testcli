@@ -241,3 +241,26 @@ func TestTail(t *testing.T) {
 
 	c.cmd.Process.Kill()
 }
+
+func TestMultiline(t *testing.T) {
+	_, err := os.Create("log.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("log.txt")
+
+	c := Command(t, "tail", "-f", "log.txt")
+	c.Start()
+
+	Run(t, "/bin/bash", "-c", "echo \"line 1\nline 2\" >> log.txt")
+	if Error() != nil {
+		t.Fatal("cmmand failed", Error())
+	}
+
+	expected := "line 1\nline 2"
+	if !c.StdoutContains(expected) {
+		t.Fatalf("Expected %q to contain %s", c.Stdout(), expected)
+	}
+
+	c.cmd.Process.Kill()
+}
