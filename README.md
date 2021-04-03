@@ -1,6 +1,9 @@
 # testcli
 CLI testing package for the Go language.
 
+## Releases
+The `master` branch might not be 100% stable. You should consider using one of the versions listed on https://github.com/rendon/testcli/releases.
+
 Developing a command line application? Wanna be able to test your app from the outside? If the answer is Yes to at least one of the questions, keep reading.
 
 When using Ruby I use [aruba](https://github.com/cucumber/aruba) for testing command line applications, in Go I still can use aruba, but it"s awkward to bring Ruby and it's artillery only to test my app.
